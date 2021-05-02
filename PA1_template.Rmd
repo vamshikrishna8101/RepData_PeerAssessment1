@@ -1,25 +1,185 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
+title: "Reproducible Research: Peer Assessment 1 - Vamshi Krishna"
 output: 
   html_document:
     keep_md: true
 ---
 
+```{r setpotions, echo=TRUE}
+library(knitr)
+opts_chunk$set(echo = TRUE, results = TRUE, cache = TRUE)
+```
 
-## Loading and preprocessing the data
-
-
+```{r datadownload}
+# Set working directory
+# Download file
+#setwd("C://Users//Olusola//Desktop//RR_WK2")
+activityDataFileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+activityDataZipFile <- "activity.zip"
+if (!file.exists(activityDataZipFile)) {
+        download.file(activityDataFileUrl, activityDataZipFile, mode = "wb")
+}
+# unzip downloaded file
+activityDataFile <- "activity"
+if (!file.exists(activityDataFile)) {
+        unzip(activityDataZipFile)
+}
+```
 
 ## What is mean total number of steps taken per day?
 
+1. Calculate the total number of steps taken per day
 
+```{r readfile}
+# Read data into object variable dataFile
+dataFile <- read.csv("activity.csv")
+# Observe data using summary()
+summary(dataFile)
+```
+
+```{r classdate}
+# Change date from object of class factor to object of class date
+dataFile$date <- as.Date(as.character(dataFile$date))
+# Observe data again
+summary(dataFile)
+```
+
+```{r cleandata}
+# Create data without NAs to compute mean later
+dataFileNAs <- is.na(dataFile$steps)
+cleanDataFile <- dataFile[!dataFileNAs,]
+```
+
+```{r sumdata}
+# Use aggregate() to calculate the total number of steps taken per day
+# I would have used tapply() but tapply() will convert dataFile from a data frame into an array(vector)
+# I want to use ggplot() to make the histogram which only works with data frame 
+stepsDaily <- aggregate(steps ~ date, dataFile, sum, na.rm = TRUE)
+head(stepsDaily, 15)
+```
+
+2. Make a histogram of the total number of steps taken each day
+
+```{r histogramH1, fig.height=5, fig.width=7}
+library(ggplot2)
+H1 <- ggplot(data = na.omit(stepsDaily), aes(x = steps)) + 
+        geom_histogram(fill = "green", binwidth = 1000) +
+        xlab("Total number of steps Daily") +
+        ylab("Frequency") +
+        ggtitle("Histogram of the Total Number of Steps Taken Each Day")
+print(H1)
+```
+
+3. Calculate and report the mean and median of the total number of steps taken per day
+
+```{r meanMedian1}
+stepsDailyMean <- mean(stepsDaily$steps, na.rm = TRUE)
+print(stepsDailyMean)
+stepsDailyMedian <- median(stepsDaily$steps, na.rm = TRUE)
+print(stepsDailyMedian)
+```
 
 ## What is the average daily activity pattern?
 
+1. Make a time series plot (i.e. type="l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
 
+```{r linetimeplot, fig.height=5}
+average <- aggregate(steps ~ interval, dataFile, mean, na.rm = TRUE)
+library(ggplot2)
+timePlot <- ggplot(data = average, aes(x = interval, y = steps)) +
+        geom_line(color = "purple") +
+        xlab("5-minute interval") +
+        ylab("Average steps") +
+        ggtitle("Average steps in 5-minute interval")
+print(timePlot)
+```
+
+2. Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r maxstep}
+names(average)[1] = "Intervals"
+names(average)[2] = "Average_steps"
+head(average, 15)
+intervalMax <- average[which.max(average$Average_steps),]
+intervalMax
+```
 
 ## Imputing missing values
 
+1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r sumNAs}
+totalNas <- sum(dataFileNAs)
+totalNas
+```
 
+2. Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+
+3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+```{r replaceNAs}
+missingValues <- is.na(dataFile)
+table(missingValues)
+# Replace missing data with mean of steps
+# Use the Hmisc package to impute mean i.e. install.packages("Hmisc"). Then load the package.
+library(Hmisc)
+imputing <- dataFile
+imputing$steps <- impute(dataFile$steps, mean)
+sum(is.na(imputing$steps))
+```
+
+4. Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+```{r sumImputed}
+sumImputing <- aggregate(steps ~ date, imputing, sum)
+names(sumImputing)[1] = "date"
+names(sumImputing)[2] = "Imputedsteps"
+head(sumImputing, 20)
+```
+
+```{r histogramH2, fig.height=5, fig.width=7}
+library(ggplot2)
+H2 <- ggplot(data = sumImputing, aes(x = Imputedsteps)) +
+        geom_histogram(fill = "red", binwidth = 1000) +
+        xlab("Total number of steps each day") +
+        ylab("Frequency") +
+        ggtitle("Histogram of the Total Number of Steps Taken Each Day")
+print(H2)
+```
+
+```{r meanMedian2}
+# Mean of sumIputing
+mean(sumImputing$Imputedsteps)
+# Median of sumIputing
+median(sumImputing$Imputedsteps)
+```
+
+
+#### The mean and median of the original data with NAs are 10766.19 and 10765 respectively.
+#### Likewise the mean and median of the imputed data without NAs are 10766.19 and 10766.19.
+#### Thus, there is no real different between the two sets of data.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+### For this part the weekdays() function may be of some help here. Use the dataset with the filled-in missing values for this part.
+
+1. Create a new factor variable in the dataset with two levels - "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+```{r weeklevels}
+imputing$dating <- ifelse(as.POSIXlt(imputing$date)$wday %in% c(0,6), "Weekend", "Weekday")
+head(imputing)
+```
+
+2. Make a panel plot containing a time series plot (i.e.type="l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).
+```{r meanweeklevels}
+meanImputing <- aggregate(steps ~ interval + dating, imputing, mean)
+head(meanImputing)
+```
+
+```{r panelplot, fig.height=5}
+# Use ggplot2
+library(ggplot2)
+panelPlot <- ggplot(data = meanImputing, aes(x = interval, y = steps)) +
+        geom_line(color = "gold") +
+        facet_grid(dating ~ .) +
+        xlab("5-minute interval") +
+        ylab("Average steps") +
+        ggtitle("Average steps in 5-minute interval")
+print(panelPlot)
+```
